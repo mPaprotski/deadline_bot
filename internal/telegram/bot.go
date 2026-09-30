@@ -9,6 +9,7 @@ import (
 	"net"
 	"net/http"
 	"net/url"
+	"runtime/debug"
 	"sync"
 	"time"
 
@@ -182,19 +183,24 @@ func (b *Bot) Stop() {
 func (b *Bot) processUpdate(ctx context.Context, update tgbotapi.Update) {
 	defer func() {
 		if r := recover(); r != nil {
-			b.logger.Error("Panic recovered in update processor", "panic", r)
+			b.logger.Error("Panic recovered in update processor", "panic", r, "stack", string(debug.Stack()))
 		}
 	}()
 
 	if update.Message != nil {
-		from := update.Message.From
-		if from == nil {
+		if update.Message.From == nil || update.Message.Chat == nil {
+			b.logger.Warn("Ignored malformed Telegram message update", "update_id", update.UpdateID)
 			return
 		}
+		from := update.Message.From
 
 		user, err := b.userService.EnsureUser(ctx, from.ID, from.UserName, from.FirstName, from.LastName)
 		if err != nil {
 			b.logger.Error("Failed to ensure user", "user_id", from.ID, "error", err)
+			return
+		}
+		if user == nil {
+			b.logger.Error("User service returned nil user", "user_id", from.ID)
 			return
 		}
 
@@ -205,10 +211,18 @@ func (b *Bot) processUpdate(ctx context.Context, update tgbotapi.Update) {
 	}
 
 	if update.CallbackQuery != nil {
+		if update.CallbackQuery.From == nil || update.CallbackQuery.Message == nil || update.CallbackQuery.Message.Chat == nil {
+			b.logger.Warn("Ignored unsupported Telegram callback update", "update_id", update.UpdateID)
+			return
+		}
 		from := update.CallbackQuery.From
 		user, err := b.userService.EnsureUser(ctx, from.ID, from.UserName, from.FirstName, from.LastName)
 		if err != nil {
 			b.logger.Error("Failed to ensure user on callback", "user_id", from.ID, "error", err)
+			return
+		}
+		if user == nil {
+			b.logger.Error("User service returned nil user on callback", "user_id", from.ID)
 			return
 		}
 
