@@ -1,0 +1,19 @@
+# Binaries
+/bot
+*.exe
+*.test
+*.out
+
+# Database & local data
+data/
+*.db
+*.db-wal
+*.db-shm
+*.db-journal
+
+# Environment variables
+.env
+
+# IDEs
+.idea/
+.vscode/

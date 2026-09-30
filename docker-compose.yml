@@ -1,0 +1,18 @@
+services:
+  bot:
+    build: .
+    image: deadline_bot:latest
+    container_name: deadline_bot
+    restart: unless-stopped
+    env_file: .env
+    environment:
+      DATABASE_PATH: /data/bot.db
+      WEBHOOK_LISTEN_ADDR: ${WEBHOOK_LISTEN_ADDR:-:8080}
+    volumes:
+      - bot_data:/data
+    ports:
+      - "${WEBHOOK_PORT:-8080}:8080"
+
+volumes:
+  bot_data:
+    driver: local
