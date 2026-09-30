@@ -101,6 +101,22 @@ func (s *UserService) EnsureUser(ctx context.Context, tgID int64, username, firs
 		}
 	}
 
+	if tgID == s.ownerID && (u.GroupID == nil || u.Role != domain.RoleOwner) {
+		grp, err := s.storage.GetDefaultGroup(ctx)
+		if err != nil {
+			return nil, fmt.Errorf("failed to get owner group: %w", err)
+		}
+		if grp != nil {
+			if err := s.storage.SetUserGroupAndRole(ctx, tgID, grp.ID, domain.RoleOwner, now); err != nil {
+				return nil, fmt.Errorf("failed to link owner to default group: %w", err)
+			}
+			groupID := grp.ID
+			u.GroupID = &groupID
+			u.Role = domain.RoleOwner
+			u.Status = domain.UserStatusActive
+		}
+	}
+
 	return u, nil
 }
 

@@ -345,6 +345,10 @@ func (b *Bot) handleAdminCallback(ctx context.Context, cb *tgbotapi.CallbackQuer
 		return b.showAdminMenu(ctx, cb.Message.Chat.ID, cb.Message.MessageID, user.IsOwner())
 	}
 
+	if user.GroupID == nil {
+		return b.sendError(cb.Message.Chat.ID, "Группа пользователя не настроена. Отправьте /start и повторите действие.")
+	}
+
 	if data == "adm:lab:new" {
 		// Step 1: Pick subject
 		subs, err := b.subjectService.ListActiveSubjects(ctx, *user.GroupID)

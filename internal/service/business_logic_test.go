@@ -248,8 +248,8 @@ func TestRescheduleAndCancellation(t *testing.T) {
 	// Verify lab_changed notification was scheduled
 	var changedNotifCount int
 	_ = storage.DB().QueryRowContext(ctx, "SELECT COUNT(*) FROM notification_jobs WHERE lab_id = ? AND deadline_version = 2 AND notification_type = 'lab_changed' AND status = 'pending'", lab.ID).Scan(&changedNotifCount)
-	if changedNotifCount != 1 {
-		t.Errorf("expected 1 lab_changed notification job, got %d", changedNotifCount)
+	if changedNotifCount != 2 {
+		t.Errorf("expected 2 lab_changed notification jobs, got %d", changedNotifCount)
 	}
 
 	// 2. Cancel lab
@@ -273,8 +273,8 @@ func TestRescheduleAndCancellation(t *testing.T) {
 	// Verify lab_cancelled notification was scheduled
 	var cancelledNotifCount int
 	_ = storage.DB().QueryRowContext(ctx, "SELECT COUNT(*) FROM notification_jobs WHERE lab_id = ? AND notification_type = 'lab_cancelled' AND status = 'pending'", lab.ID).Scan(&cancelledNotifCount)
-	if cancelledNotifCount != 1 {
-		t.Errorf("expected 1 lab_cancelled notification, got %d", cancelledNotifCount)
+	if cancelledNotifCount != 2 {
+		t.Errorf("expected 2 lab_cancelled notifications, got %d", cancelledNotifCount)
 	}
 }
 
