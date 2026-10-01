@@ -502,3 +502,132 @@ func (b *Bot) sendError(chatID int64, text string) error {
 	_, err := b.api.Send(reply)
 	return err
 }
+
+// resumeFSMDialogue restores the FSM dialogue from the saved state
+func (b *Bot) resumeFSMDialogue(ctx context.Context, cb *tgbotapi.CallbackQuery, user *domain.User, ds *domain.DialogueState) error {
+	chatID := cb.Message.Chat.ID
+	messageID := cb.Message.MessageID
+
+	switch ds.State {
+	case "enter_invite":
+		edit := tgbotapi.NewEditMessageText(chatID, messageID, "👋 <b>Продолжаем ввод кода приглашения</b>\n\nПожалуйста, введите код приглашения:")
+		edit.ParseMode = tgbotapi.ModeHTML
+		markup := FSMControls(false, false)
+		edit.ReplyMarkup = &markup
+		_, err := b.api.Send(edit)
+		return err
+
+	case "create_lab":
+		draft, err := b.fsm.GetLabDraft(ds)
+		if err != nil {
+			_ = b.fsm.Clear(ctx, user.ID)
+			edit := tgbotapi.NewEditMessageText(chatID, messageID, "❌ Ошибка чтения черновика. Начните заново.")
+			_, err := b.api.Send(edit)
+			return err
+		}
+
+		var prompt string
+		switch ds.Step {
+		case "number_title":
+			prompt = "<b>Шаг 2 из 7: Введите номер и название работы</b>\nПример: <code>1. Основы синтаксиса Go</code>"
+		case "description":
+			prompt = "<b>Шаг 3 из 7: Описание работы</b>\nВведите описание или нажмите «Пропустить»:"
+		case "deadline":
+			prompt = fmt.Sprintf("<b>Шаг 4 из 7: Дедлайн</b>\nВведите дату и время сдачи (в %s):", b.timeHelper.TimezoneName())
+		case "confirm_date_only":
+			prompt = "ℹ️ Подтвердите время сдачи 23:59 или измените дату:"
+		case "confirm_past":
+			prompt = "⚠️ Подтвердите прошедший дедлайн или измените дату:"
+		case "materials":
+			prompt = "<b>Шаг 5 из 7: Материалы и задание</b>\nОтправьте ссылку или файл, либо нажмите «Пропустить»:"
+		case "submission_method":
+			prompt = "<b>Шаг 6 из 7: Способ сдачи и комментарий</b>\nВведите текст или нажмите «Пропустить»:"
+		case "confirm":
+			return b.showLabPreviewAndConfirm(chatID, user.ID, draft)
+		default:
+			prompt = "<b>Продолжаем создание лабораторной работы</b>\nВведите номер и название работы:"
+		}
+
+		edit := tgbotapi.NewEditMessageText(chatID, messageID, prompt)
+		edit.ParseMode = tgbotapi.ModeHTML
+		markup := FSMControls(true, true)
+		edit.ReplyMarkup = &markup
+		_, err = b.api.Send(edit)
+		return err
+
+	case "reschedule_lab":
+		draft, err := b.fsm.GetRescheduleDraft(ds)
+		if err != nil {
+			_ = b.fsm.Clear(ctx, user.ID)
+			edit := tgbotapi.NewEditMessageText(chatID, messageID, "❌ Ошибка чтения данных. Начните заново.")
+			_, err := b.api.Send(edit)
+			return err
+		}
+
+		prompt := fmt.Sprintf(
+			"<b>Продолжаем перенос дедлайна</b>\n\n"+
+				"Работа: <b>%s</b>\n"+
+				"Введите новую дату и время сдачи (в %s):",
+			html.EscapeString(draft.LabTitle), b.timeHelper.TimezoneName(),
+		)
+		edit := tgbotapi.NewEditMessageText(chatID, messageID, prompt)
+		edit.ParseMode = tgbotapi.ModeHTML
+		markup := FSMControls(false, false)
+		edit.ReplyMarkup = &markup
+		_, err = b.api.Send(edit)
+		return err
+
+	case "create_sub":
+		edit := tgbotapi.NewEditMessageText(chatID, messageID, "<b>Продолжаем создание предмета</b>\nВведите название нового предмета:")
+		edit.ParseMode = tgbotapi.ModeHTML
+		markup := FSMControls(false, false)
+		edit.ReplyMarkup = &markup
+		_, err := b.api.Send(edit)
+		return err
+
+	case "rename_sub":
+		var subID int64
+		_, err := fmt.Sscanf(ds.Step, "%d", &subID)
+		if err != nil || subID == 0 {
+			_ = b.fsm.Clear(ctx, user.ID)
+			edit := tgbotapi.NewEditMessageText(chatID, messageID, "❌ Некорректный ID предмета. Начните заново.")
+			_, err := b.api.Send(edit)
+			return err
+		}
+		edit := tgbotapi.NewEditMessageText(chatID, messageID, "<b>Продолжаем переименование предмета</b>\nВведите новое название:")
+		edit.ParseMode = tgbotapi.ModeHTML
+		markup := FSMControls(false, false)
+		edit.ReplyMarkup = &markup
+		_, err = b.api.Send(edit)
+		return err
+
+	case "group_setup":
+		draft, err := b.fsm.GetGroupSetupDraft(ds)
+		if err != nil {
+			_ = b.fsm.Clear(ctx, user.ID)
+			edit := tgbotapi.NewEditMessageText(chatID, messageID, "❌ Ошибка чтения настроек. Начните заново.")
+			_, err := b.api.Send(edit)
+			return err
+		}
+
+		var prompt string
+		if ds.Step == "name" {
+			prompt = "<b>Продолжаем настройку группы</b>\nВведите новое название учебной группы:"
+		} else {
+			prompt = "<b>Продолжаем настройку группы</b>\nВведите новый код приглашения для студентов:"
+		}
+		_ = draft // used in prompt above
+		edit := tgbotapi.NewEditMessageText(chatID, messageID, prompt)
+		edit.ParseMode = tgbotapi.ModeHTML
+		markup := FSMControls(false, false)
+		edit.ReplyMarkup = &markup
+		_, err = b.api.Send(edit)
+		return err
+
+	default:
+		_ = b.fsm.Clear(ctx, user.ID)
+		edit := tgbotapi.NewEditMessageText(chatID, messageID, "❌ Неизвестное состояние. Начните заново.")
+		_, err := b.api.Send(edit)
+		return err
+	}
+}

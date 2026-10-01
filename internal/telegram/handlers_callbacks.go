@@ -177,6 +177,16 @@ func (b *Bot) handleFSMCallback(ctx context.Context, cb *tgbotapi.CallbackQuery,
 		return err
 	}
 
+	if data == "fsm:continue" {
+		state, err := b.fsm.GetState(ctx, user.ID)
+		if err != nil || state == nil {
+			edit := tgbotapi.NewEditMessageText(cb.Message.Chat.ID, cb.Message.MessageID, "❌ Не удалось восстановить состояние. Начните заново.")
+			_, err := b.api.Send(edit)
+			return err
+		}
+		return b.resumeFSMDialogue(ctx, cb, user, state)
+	}
+
 	state, err := b.fsm.GetState(ctx, user.ID)
 	if err != nil || state == nil {
 		return nil

@@ -40,6 +40,29 @@ func (b *Bot) cmdStart(ctx context.Context, msg *tgbotapi.Message, user *domain.
 		return err
 	}
 
+	// Check if user has an active FSM state (e.g., was in the middle of creating a lab)
+	fsmState, err := b.fsm.GetState(ctx, user.ID)
+	if err == nil && fsmState != nil && fsmState.State != "" {
+		// User was in the middle of something - ask if they want to continue or cancel
+		text := fmt.Sprintf(
+			"⚠️ <b>У вас есть незавершённое действие</b>\n\n"+
+				"Вы находились в процессе: <b>%s</b>\n\n"+
+				"Хотите продолжить или отменить?",
+			b.getFSMStateDescription(fsmState.State),
+		)
+		reply := tgbotapi.NewMessage(msg.Chat.ID, text)
+		reply.ParseMode = tgbotapi.ModeHTML
+		
+		// Create inline keyboard with continue/cancel options
+		btnContinue := tgbotapi.NewInlineKeyboardButtonData("▶️ Продолжить", "fsm:continue")
+		btnCancel := tgbotapi.NewInlineKeyboardButtonData("❌ Отменить", "fsm:cancel")
+		reply.ReplyMarkup = tgbotapi.NewInlineKeyboardMarkup(
+			tgbotapi.NewInlineKeyboardRow(btnContinue, btnCancel),
+		)
+		_, err = b.api.Send(reply)
+		return err
+	}
+
 	// If user is not yet connected to a group:
 	if user.GroupID == nil {
 		// If user is the owner, check if a group exists
@@ -92,6 +115,26 @@ func (b *Bot) cmdStart(ctx context.Context, msg *tgbotapi.Message, user *domain.
 	reply.ReplyMarkup = MainMenuKeyboard(user.IsAdminOrOwner())
 	_, err = b.api.Send(reply)
 	return err
+}
+
+// getFSMStateDescription returns a human-readable description of the FSM state
+func (b *Bot) getFSMStateDescription(state string) string {
+	switch state {
+	case "enter_invite":
+		return "ввод кода приглашения"
+	case "create_lab":
+		return "создание лабораторной работы"
+	case "reschedule_lab":
+		return "перенос дедлайна"
+	case "create_sub":
+		return "создание предмета"
+	case "rename_sub":
+		return "переименование предмета"
+	case "group_setup":
+		return "настройка группы"
+	default:
+		return "выполнение действия"
+	}
 }
 
 func (b *Bot) cmdDeadlines(ctx context.Context, msg *tgbotapi.Message, user *domain.User) error {
