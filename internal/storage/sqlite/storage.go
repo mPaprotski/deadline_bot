@@ -6,6 +6,7 @@ import (
 	"fmt"
 	"io/fs"
 	"log/slog"
+	"net/url"
 	"os"
 	"path/filepath"
 	"sort"
@@ -14,6 +15,7 @@ import (
 
 	"deadline_bot/migrations"
 
+	_ "github.com/tursodatabase/libsql-client-go/libsql"
 	_ "modernc.org/sqlite"
 )
 
@@ -65,6 +67,34 @@ func New(ctx context.Context, dbPath string, logger *slog.Logger) (*Storage, err
 	}
 
 	return storage, nil
+}
+
+// NewRemote connects to a persistent Turso/libSQL database.
+func NewRemote(ctx context.Context, databaseURL, authToken string, logger *slog.Logger) (*Storage, error) {
+	if logger == nil {
+		logger = slog.Default()
+	}
+
+	parsedURL, err := url.Parse(databaseURL)
+	if err != nil || parsedURL.Scheme != "libsql" || parsedURL.Host == "" {
+		return nil, fmt.Errorf("invalid Turso database URL")
+	}
+	query := parsedURL.Query()
+	query.Set("authToken", authToken)
+	parsedURL.RawQuery = query.Encode()
+
+	db, err := sql.Open("libsql", parsedURL.String())
+	if err != nil {
+		return nil, fmt.Errorf("failed to open Turso database: %w", err)
+	}
+	db.SetMaxOpenConns(1)
+	db.SetMaxIdleConns(1)
+	if err := db.PingContext(ctx); err != nil {
+		_ = db.Close()
+		return nil, fmt.Errorf("failed to connect to Turso database: %w", err)
+	}
+
+	return &Storage{db: db, logger: logger}, nil
 }
 
 func (s *Storage) Close() error {

@@ -35,9 +35,14 @@ func run() error {
 	}))
 	slog.SetDefault(logger)
 
+	databaseBackend := "sqlite"
+	if cfg.TursoDatabaseURL != "" {
+		databaseBackend = "turso"
+	}
+
 	logger.Info("Starting Deadline Bot",
 		"owner_id", cfg.OwnerTelegramID,
-		"database_path", cfg.DatabasePath,
+		"database_backend", databaseBackend,
 		"timezone", cfg.GroupTimezone,
 		"check_interval", cfg.NotificationCheckInterval.String(),
 		"log_level", cfg.LogLevel.String(),
@@ -47,7 +52,12 @@ func run() error {
 	defer cancel()
 
 	// 1. Initialize SQLite storage
-	storage, err := sqlite.New(ctx, cfg.DatabasePath, logger)
+	var storage *sqlite.Storage
+	if cfg.TursoDatabaseURL != "" {
+		storage, err = sqlite.NewRemote(ctx, cfg.TursoDatabaseURL, cfg.TursoAuthToken, logger)
+	} else {
+		storage, err = sqlite.New(ctx, cfg.DatabasePath, logger)
+	}
 	if err != nil {
 		return fmt.Errorf("database initialization failed: %w", err)
 	}

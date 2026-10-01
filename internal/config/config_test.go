@@ -14,6 +14,10 @@ func setValidConfigEnv(t *testing.T) {
 	t.Setenv("WEBHOOK_LISTEN_ADDR", "")
 	t.Setenv("OWNER_TELEGRAM_ID", "12345")
 	t.Setenv("DATABASE_PATH", "")
+	t.Setenv("TURSO_DATABASE_URL", "")
+	t.Setenv("TURSO_AUTH_TOKEN", "")
+	t.Setenv("DATABASE_URL", "")
+	t.Setenv("DATABASE_AUTH_TOKEN", "")
 	t.Setenv("GROUP_TIMEZONE", "")
 	t.Setenv("TIMEZONE", "Europe/Minsk")
 	t.Setenv("NOTIFICATION_CHECK_INTERVAL", "")
@@ -57,5 +61,31 @@ func TestLoadRejectsInvalidWebhookSecret(t *testing.T) {
 
 	if _, err := Load(); err == nil {
 		t.Fatal("Load() error = nil, want invalid webhook secret error")
+	}
+}
+
+func TestLoadTursoConfiguration(t *testing.T) {
+	setValidConfigEnv(t)
+	t.Setenv("TURSO_DATABASE_URL", "libsql://deadline-bot.example.turso.io")
+	t.Setenv("TURSO_AUTH_TOKEN", "secret-token")
+
+	cfg, err := Load()
+	if err != nil {
+		t.Fatalf("Load() error = %v", err)
+	}
+	if cfg.TursoDatabaseURL != "libsql://deadline-bot.example.turso.io" {
+		t.Errorf("TursoDatabaseURL = %q", cfg.TursoDatabaseURL)
+	}
+	if cfg.TursoAuthToken != "secret-token" {
+		t.Error("TursoAuthToken was not loaded")
+	}
+}
+
+func TestLoadRequiresTursoToken(t *testing.T) {
+	setValidConfigEnv(t)
+	t.Setenv("TURSO_DATABASE_URL", "libsql://deadline-bot.example.turso.io")
+
+	if _, err := Load(); err == nil {
+		t.Fatal("Load() error = nil, want missing Turso token error")
 	}
 }

@@ -19,6 +19,8 @@ type Config struct {
 	WebhookListenAddr         string
 	OwnerTelegramID           int64
 	DatabasePath              string
+	TursoDatabaseURL          string
+	TursoAuthToken            string
 	GroupTimezone             string
 	Location                  *time.Location
 	NotificationCheckInterval time.Duration
@@ -63,6 +65,17 @@ func Load() (*Config, error) {
 	dbPath := os.Getenv("DATABASE_PATH")
 	if strings.TrimSpace(dbPath) == "" {
 		dbPath = "./data/bot.db"
+	}
+	tursoURL := strings.TrimSpace(envOrFallback("TURSO_DATABASE_URL", "DATABASE_URL"))
+	tursoToken := strings.TrimSpace(envOrFallback("TURSO_AUTH_TOKEN", "DATABASE_AUTH_TOKEN"))
+	if tursoURL != "" {
+		parsedTursoURL, parseErr := url.Parse(tursoURL)
+		if parseErr != nil || parsedTursoURL.Scheme != "libsql" || parsedTursoURL.Host == "" {
+			return nil, errors.New("TURSO_DATABASE_URL must be a valid libsql:// URL")
+		}
+		if tursoToken == "" {
+			return nil, errors.New("TURSO_AUTH_TOKEN is required when TURSO_DATABASE_URL is set")
+		}
 	}
 
 	tz := envOrFallback("GROUP_TIMEZONE", "TIMEZONE")
@@ -111,6 +124,8 @@ func Load() (*Config, error) {
 		WebhookListenAddr:         webhookListenAddr,
 		OwnerTelegramID:           ownerID,
 		DatabasePath:              dbPath,
+		TursoDatabaseURL:          tursoURL,
+		TursoAuthToken:            tursoToken,
 		GroupTimezone:             tz,
 		Location:                  loc,
 		NotificationCheckInterval: interval,

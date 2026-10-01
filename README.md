@@ -114,12 +114,25 @@ go build -o deadline_bot ./cmd/bot
 | `WEBHOOK_PORT` | ❌ | `8080` | Порт хоста, опубликованный Docker Compose |
 | `OWNER_TELEGRAM_ID` | ✅ | — | Telegram User ID владельца (получить через @userinfobot) |
 | `DATABASE_PATH` | ✅ | — | Путь к файлу SQLite (`./data/bot.db` или `/data/bot.db` в Docker) |
+| `TURSO_DATABASE_URL` | ❌ | — | URL постоянной Turso/libSQL базы; при наличии используется вместо `DATABASE_PATH` |
+| `TURSO_AUTH_TOKEN` | при Turso | — | Секретный токен доступа к Turso; хранить только в переменных окружения |
 | `GROUP_TIMEZONE` | ❌ | `Europe/Minsk` | IANA-часовой пояс для дедлайнов и напоминаний (`TIMEZONE` поддерживается как старый alias) |
 | `NOTIFICATION_CHECK_INTERVAL` | ❌ | `1m` | Интервал проверки БД воркером уведомлений (`NOTIFICATION_POLL_SECONDS` поддерживается как старый alias) |
 | `LOG_LEVEL` | ❌ | `info` | Уровень логирования: `debug`, `info`, `warn`, `error` |
 
 > [!NOTE]
 > Файл `.env` никогда не должен попадать в Git. Добавьте его в `.gitignore` (он уже там).
+
+### Постоянная база на бесплатном Render
+
+Локальный SQLite-файл на бесплатном Render удаляется после сна или перезапуска сервиса. Для постоянного хранения создайте Turso-базу и задайте в Render Environment:
+
+```dotenv
+TURSO_DATABASE_URL=libsql://your-database.turso.io
+TURSO_AUTH_TOKEN=your-secret-token
+```
+
+Не добавляйте токен Turso в `.env.example` или Git. При наличии этих переменных приложение автоматически использует Turso вместо `DATABASE_PATH`.
 
 ---
 
